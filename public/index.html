@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Estoque — Farmácia Magistral</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141714;
+    --surface2: #1c1f1c;
+    --border: #2a2e2a;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --text: #e8ede8;
+    --muted: #6b7a6b;
+    --accent: #a3e635;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  header span { color: var(--muted); font-size: 11px; }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 13px 18px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--text); }
+
+  .panel { display: none; padding: 28px; }
+  .panel.active { display: block; }
+
+  .upload-zone {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: #161a16; }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone p { color: var(--muted); line-height: 1.8; font-size: 12px; }
+  .upload-zone strong { color: var(--text); }
+  .upload-icon { font-size: 28px; margin-bottom: 10px; }
+
+  .btn {
+    background: var(--accent);
+    color: #0d0f0e;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); opacity: 1; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 18px;
+    font-size: 12px;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.green { background: var(--green); }
+
+  .stats-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .stat-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stat-label { color: var(--muted); font-size: 10px; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .search-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+
+  input[type="text"], textarea, select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  input[type="text"] { flex: 1; min-width: 160px; }
+  textarea { width: 100%; resize: vertical; min-height: 110px; }
+
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 440px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface2); position: sticky; top: 0; z-index: 1; }
+
+  th {
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface); }
+
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.5px; }
+  .badge-ok   { background: #052e16; color: var(--green); }
+  .badge-low  { background: #451a03; color: var(--yellow); }
+  .badge-zero { background: #2d0000; color: var(--red); }
+
+  .formula-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 860px) { .formula-grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .result-item { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; border: 1px solid var(--border); }
+  .result-item.found   { border-color: #16a34a; background: #052e1618; }
+  .result-item.missing { border-color: #991b1b; background: #2d000018; }
+  .result-item.partial { border-color: #92400e; background: #451a0318; }
+  .result-item.low     { border-color: #92400e; background: #451a0318; }
+
+  .result-item .rname   { font-weight: 500; color: var(--text); margin-bottom: 3px; font-size: 12px; }
+  .result-item .rdetail { color: var(--muted); font-size: 11px; line-height: 1.6; }
+
+  .tag { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tag-found   { color: var(--green); }
+  .tag-missing { color: var(--red); }
+  .tag-partial { color: var(--yellow); }
+
+  .sub-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    margin-top: 7px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .sub-box strong { color: var(--yellow); }
+
+  .spinner {
+    display: inline-block;
+    width: 13px; height: 13px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); }
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-state p { line-height: 1.8; font-size: 12px; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 7px; }
+
+  .info-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
+  .info-row span { color: var(--text); }
+
+  #img-preview { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 10px; display: none; }
+
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 9px;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 7px;
+  }
+
+  .formula-result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
+  .counts { display: flex; gap: 14px; font-size: 11px; }
+  .count-ok   { color: var(--green); }
+  .count-miss { color: var(--red); }
+  .count-partial { color: var(--yellow); }
+
+  .group-toggle { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  .gtbtn {
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+  }
+
+  .gtbtn.active { background: var(--accent); color: #0d0f0e; border-color: var(--accent); }
+  .gtbtn:hover:not(.active) { color: var(--text); }
+
+  .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚗ MAGISTRAL · ESTOQUE</h1>
+  <span id="last-update">—</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="estoque">📦 Estoque</div>
+  <div class="tab" data-tab="formula">🧪 Analisar Fórmula</div>
+  <div class="tab" data-tab="sobre">ℹ Sobre</div>
+</div>
+
+<!-- ESTOQUE -->
+<div class="panel active" id="tab-estoque">
+
+  <div class="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">Nenhum estoque carregado. Faça o upload do CSV.</span>
+  </div>
+
+  <div class="top-actions">
+    <div class="upload-zone" style="flex:1;min-width:220px;text-align:left;padding:16px;display:flex;align-items:center;gap:14px">
+      <input type="file" id="csv-upload" accept=".csv,.txt">
+      <div style="font-size:22px">📂</div>
+      <div>
+        <p><strong>Carregar / Atualizar Estoque (CSV)</strong></p>
+        <p style="font-size:11px;margin-top:2px">Relatório de Controle de Estoque do sistema</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-ghost" id="btn-export" style="font-size:11px" disabled>⬇ Exportar</button>
+      <button class="btn btn-ghost" id="btn-clear"  style="font-size:11px" disabled>🗑 Limpar</button>
+    </div>
+  </div>
+
+  <div id="stats-row" class="stats-row" style="display:none">
+    <div class="stat"><div class="stat-val" id="s-total">0</div><div class="stat-label">Total itens</div></div>
+    <div class="stat"><div class="stat-val" id="s-mp" style="color:#a5b4fc">0</div><div class="stat-label">Matéria-prima</div></div>
+    <div class="stat"><div class="stat-val" id="s-emb" style="color:#818cf8">0</div><div class="stat-label">Embalagens</div></div>
+    <div class="stat"><div class="stat-val" id="s-ok" style="color:var(--green)">0</div><div class="stat-label">Em estoque</div></div>
+    <div class="stat"><div class="stat-val" id="s-low" style="color:var(--yellow)">0</div><div class="stat-label">Estoque baixo</div></div>
+    <div class="stat"><div class="stat-val" id="s-zero" style="color:var(--red)">0</div><div class="stat-label">Zerados</div></div>
+  </div>
+
+  <div class="group-toggle" id="group-toggle" style="display:none">
+    <button class="gtbtn active" data-group="todos">Todos</button>
+    <button class="gtbtn" data-group="Matéria-prima">Matéria-prima</button>
+    <button class="gtbtn" data-group="Embalagem">Embalagem</button>
+    <button class="gtbtn" data-group="Drogaria">Drogaria</button>
+    <button class="gtbtn" data-group="Revenda">Revenda</button>
+    <button class="gtbtn" data-group="Outros">Outros</button>
+  </div>
+
+  <div class="search-row">
+    <input type="text" id="search" placeholder="Buscar produto..." disabled>
+    <select id="filter-status" disabled>
+      <option value="">Todos os status</option>
+      <option value="ok">Em estoque</option>
+      <option value="low">Estoque baixo</option>
+      <option value="zero">Zerado</option>
+    </select>
+  </div>
+
+  <div id="table-area">
+    <div class="empty-state">
+      <div class="icon">📋</div>
+      <p>Faça o upload do CSV para visualizar o estoque.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FÓRMULA -->
+<div class="panel" id="tab-formula">
+  <div class="formula-grid">
+    <div>
+      <div class="card">
+        <div class="card-title">Upload da Fórmula</div>
+
+        <div class="section-label">Imagem ou PDF da receita</div>
+        <div class="upload-zone" style="padding:20px;margin-bottom:12px">
+          <input type="file" id="formula-file" accept="image/*,.pdf">
+          <div class="upload-icon">📋</div>
+          <p><strong>Arraste aqui ou clique</strong><br>JPG, PNG, PDF</p>
+        </div>
+        <img id="img-preview" alt="Preview">
+        <div id="file-chip" style="display:none"></div>
+
+        <hr>
+
+        <div class="section-label">Ou liste os ativos manualmente</div>
+        <textarea id="manual-ativos" placeholder="Ex:&#10;Nattokinase 100mg&#10;Coenzima Q10 50mg&#10;Vitamina D3 5000UI&#10;Magnésio Bisglicinato 300mg"></textarea>
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btn-analisar" disabled>Analisar →</button>
+          <button class="btn btn-ghost" id="btn-reset-formula">Limpar</button>
+        </div>
+
+        <div id="loading-state" style="display:none;margin-top:12px;color:var(--muted);font-size:12px">
+          <span class="spinner"></span> Analisando com IA...
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="min-height:320px">
+        <div id="formula-result-area">
+          <div class="empty-state" style="padding:40px 0">
+            <div class="icon">🧪</div>
+            <p>Carregue uma fórmula e clique em<br><strong>Analisar</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOBRE -->
+<div class="panel" id="tab-sobre">
+  <div class="card" style="max-width:580px">
+    <div class="card-title">Como usar</div>
+    <div class="info-row">📂 <span>Upload do CSV</span> — Relatório de Controle de Estoque do seu sistema</div>
+    <div class="info-row">🔄 <span>Atualização diária</span> — Só arrastar o novo arquivo; substitui automaticamente</div>
+    <div class="info-row">🏷 <span>Grupos</span> — Filtre por Matéria-prima, Embalagem, Drogaria, Revenda, Outros</div>
+    <div class="info-row">🧪 <span>Analisar Fórmula</span> — Sobe imagem/PDF da receita ou lista manualmente</div>
+    <div class="info-row">🤖 <span>IA verifica</span> — Cada ativo cruzado com o estoque. Faltando? Sugere substituto disponível</div>
+    <hr>
+    <div class="section-label">Formato do CSV</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--muted);line-height:1.8">
+      Colunas reconhecidas: <strong style="color:var(--accent)">Filial · Local · Código · Grupo · Produto · Unidade · Quantidade</strong>
+    </div>
+    <hr>
+    <div class="section-label">Status</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--muted);line-height:2">
+      <span class="badge badge-ok">EM ESTOQUE</span> Qtd &gt; 10 &nbsp;
+      <span class="badge badge-low">BAIXO</span> 1–10 &nbsp;
+      <span class="badge badge-zero">ZERADO</span> 0
+    </div>
+  </div>
+</div>
+
+<script>
+let inventory = [];
+let activeGroup = 'todos';
+let formulaFileBase64 = null;
+let formulaFileType = null;
+
+async function saveToServer(inv) {
+  const res = await fetch('/api/estoque', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inventory: inv })
+  });
+  return res.json();
+}
+
+async function loadFromServer() {
+  try {
+    const res = await fetch('/api/estoque');
+    const data = await res.json();
+    if (data.inventory && data.inventory.length > 0) {
+      inventory = data.inventory;
+      if (data.updatedAt) {
+        const d = new Date(data.updatedAt).toLocaleString('pt-BR');
+        document.getElementById('last-update').textContent = 'Atualizado: ' + d;
+      }
+      afterLoad();
+    }
+  } catch(e) {
+    console.warn('Não foi possível carregar estoque do servidor:', e.message);
+  }
+}
+
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const first = lines[0];
+  const delim = first.includes(';') ? ';' : first.includes('\t') ? '\t' : ',';
+  const headers = first.split(delim).map(h => h.replace(/^"|"$/g,'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+  
+  const idx = name => headers.findIndex(h => h.includes(name));
+  const iProduto    = idx('produto');
+  const iGrupo      = idx('grupo');
+  const iQtd        = idx('quantidade') >= 0 ? idx('quantidade') : idx('qtd');
+  const iUnidade    = idx('unidade');
+  const iCodigo     = idx('codigo') >= 0 ? idx('codigo') : idx('cod');
+
+  if (iProduto === -1 || iQtd === -1) return [];
+
+  const result = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = splitCSVLine(line, delim);
+    const nome   = (cols[iProduto] || '').trim();
+    const grupo  = iGrupo >= 0 ? (cols[iGrupo] || 'Outros').trim() : 'Outros';
+    const qtyStr = (iQtd >= 0 ? cols[iQtd] : '0') || '0';
+    const qty    = parseFloat(qtyStr.replace(',','.')) || 0;
+    const unid   = iUnidade >= 0 ? (cols[iUnidade] || '').trim() : '';
+    const cod    = iCodigo >= 0 ? (cols[iCodigo] || '').trim() : '';
+    if (nome.length > 1) result.push({ nome, grupo, qty, unidade: unid, codigo: cod });
+  }
+  return result;
+}
+
+function splitCSVLine(line, delim) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let c of line) {
+    if (c === '"') { inQ = !inQ; }
+    else if (c === delim && !inQ) { result.push(cur); cur = ''; }
+    else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+function getStatus(qty) {
+  if (qty <= 0) return 'zero';
+  if (qty <= 10) return 'low';
+  return 'ok';
+}
+
+function badgeHTML(qty) {
+  const s = getStatus(qty);
+  if (s === 'ok')   return '<span class="badge badge-ok">EM ESTOQUE</span>';
+  if (s === 'low')  return '<span class="badge badge-low">BAIXO</span>';
+  return '<span class="badge badge-zero">ZERADO</span>';
+}
+
+function renderInventory() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const fStatus = document.getElementById('filter-status').value;
+
+  const filtered = inventory.filter(it => {
+    const mg = activeGroup === 'todos' || it.grupo === activeGroup;
+    const ms = !search || it.nome.toLowerCase().includes(search) || it.codigo.includes(search);
+    const mf = !fStatus || getStatus(it.qty) === fStatus;
+    return mg && ms && mf;
+  });
+
+  document.getElementById('s-total').textContent = inventory.length;
+  document.getElementById('s-mp').textContent  = inventory.filter(i => i.grupo === 'Matéria-prima').length;
+  document.getElementById('s-emb').textContent = inventory.filter(i => i.grupo === 'Embalagem').length;
+  document.getElementById('s-ok').textContent  = inventory.filter(i => getStatus(i.qty) === 'ok').length;
+  document.getElementById('s-low').textContent = inventory.filter(i => getStatus(i.qty) === 'low').length;
+  document.getElementById('s-zero').textContent= inventory.filter(i => getStatus(i.qty) === 'zero').length;
+
+  const area = document.getElementById('table-area');
+  if (filtered.length === 0) {
+    area.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>Nenhum item encontrado.</p></div>`;
+    return;
+  }
+
+  area.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Código</th><th>Produto</th><th>Grupo</th><th>Qtd</th><th>Unid.</th><th>Status</th>
+      </tr></thead>
+      <tbody>
+        ${filtered.map((it, i) => `
+          <tr>
+            <td style="color:var(--muted)">${i+1}</td>
+            <td style="color:var(--muted);font-size:11px">${it.codigo}</td>
+            <td>${it.nome}</td>
+            <td style="color:var(--muted);font-size:11px">${it.grupo}</td>
+            <td style="font-weight:500">${it.qty.toLocaleString('pt-BR')}</td>
+            <td style="color:var(--muted);font-size:11px">${it.unidade}</td>
+            <td>${badgeHTML(it.qty)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+function afterLoad() {
+  document.getElementById('status-dot').className = 'dot green';
+  const mp  = inventory.filter(i => i.grupo === 'Matéria-prima').length;
+  const emb = inventory.filter(i => i.grupo === 'Embalagem').length;
+  document.getElementById('status-text').textContent =
+    `${inventory.length} itens carregados · ${mp} matéria-prima · ${emb} embalagens`;
+  document.getElementById('stats-row').style.display = 'flex';
+  document.getElementById('group-toggle').style.display = 'flex';
+  document.getElementById('search').disabled = false;
+  document.getElementById('filter-status').disabled = false;
+  document.getElementById('btn-export').disabled = false;
+  document.getElementById('btn-clear').disabled = false;
+  document.getElementById('btn-analisar').disabled = false;
+  renderInventory();
+}
+
+document.getElementById('csv-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const parsed = parseCSV(ev.target.result);
+    if (parsed.length === 0) { alert('Não foi possível ler o CSV. Verifique o formato.'); return; }
+    inventory = parsed;
+    const saved = await saveToServer(inventory);
+    const d = saved.updatedAt
+      ? new Date(saved.updatedAt).toLocaleString('pt-BR')
+      : new Date().toLocaleString('pt-BR');
+    document.getElementById('last-update').textContent = 'Atualizado: ' + d;
+    afterLoad();
+  };
+  reader.readAsText(file, 'utf-8');
+});
+
+document.querySelectorAll('.gtbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.gtbtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeGroup = btn.dataset.group;
+    renderInventory();
+  });
+});
+
+document.getElementById('search').addEventListener('input', renderInventory);
+document.getElementById('filter-status').addEventListener('change', renderInventory);
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const rows = [['Codigo','Produto','Grupo','Quantidade','Unidade','Status']];
+  inventory.forEach(it => rows.push([it.codigo, it.nome, it.grupo, it.qty, it.unidade, getStatus(it.qty)]));
+  const csv = '\uFEFF' + rows.map(r => r.join(';')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'estoque_magistral.csv';
+  a.click();
+});
+
+document.getElementById('btn-clear').addEventListener('click', async () => {
+  if (!confirm('Limpar todos os dados de estoque?')) return;
+  inventory = [];
+  await saveToServer([]);
+  document.getElementById('last-update').textContent = '—';
+  document.getElementById('status-dot').className = 'dot';
+  document.getElementById('status-text').textContent = 'Nenhum estoque carregado.';
+  document.getElementById('stats-row').style.display = 'none';
+  document.getElementById('group-toggle').style.display = 'none';
+  ['search','filter-status'].forEach(id => document.getElementById(id).disabled = true);
+  ['btn-export','btn-clear','btn-analisar'].forEach(id => document.getElementById(id).disabled = true);
+  document.getElementById('table-area').innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>Faça o upload do CSV.</p></div>`;
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('formula-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  formulaFileType = file.type;
+  document.getElementById('file-chip').style.display = 'inline-flex';
+  document.getElementById('file-chip').innerHTML = `📎 ${file.name}`;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    formulaFileBase64 = ev.target.result.split(',')[1];
+    if (file.type.startsWith('image/')) {
+      const img = document.getElementById('img-preview');
+      img.src = ev.target.result;
+      img.style.display = 'block';
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('btn-reset-formula').addEventListener('click', () => {
+  formulaFileBase64 = null; formulaFileType = null;
+  document.getElementById('formula-file').value = '';
+  document.getElementById('img-preview').style.display = 'none';
+  document.getElementById('file-chip').style.display = 'none';
+  document.getElementById('manual-ativos').value = '';
+  document.getElementById('formula-result-area').innerHTML = `
+    <div class="empty-state" style="padding:40px 0">
+      <div class="icon">🧪</div>
+      <p>Carregue uma fórmula e clique em<br><strong>Analisar</strong>.</p>
+    </div>`;
+});
+
+document.getElementById('btn-analisar').addEventListener('click', analisarFormula);
+
+async function analisarFormula() {
+  if (inventory.length === 0) { alert('Carregue o estoque primeiro!'); return; }
+  const manual = document.getElementById('manual-ativos').value.trim();
+  if (!manual && !formulaFileBase64) { alert('Adicione a fórmula: imagem/PDF ou lista manual.'); return; }
+
+  document.getElementById('loading-state').style.display = 'block';
+  document.getElementById('btn-analisar').disabled = true;
+  document.getElementById('formula-result-area').innerHTML = `
+    <div class="empty-state" style="padding:40px 0">
+      <span class="spinner"></span>
+      <p style="margin-top:12px">Analisando...</p>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/analisar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manual, fileBase64: formulaFileBase64, fileType: formulaFileType })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || res.statusText);
+    }
+    const result = await res.json();
+    renderResult(result);
+  } catch(err) {
+    document.getElementById('formula-result-area').innerHTML = `
+      <div class="empty-state" style="padding:40px 0">
+        <div class="icon">⚠️</div>
+        <p style="color:var(--red)">Erro ao analisar.<br><small>${err.message}</small></p>
+      </div>`;
+  } finally {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('btn-analisar').disabled = false;
+  }
+}
+
+function renderResult(result) {
+  const ativos = result.ativos || [];
+  const cOk   = ativos.filter(a => a.status === 'found').length;
+  const cLow  = ativos.filter(a => a.status === 'low').length;
+  const cPart = ativos.filter(a => a.status === 'partial').length;
+  const cMiss = ativos.filter(a => a.status === 'missing').length;
+
+  const tagMap = {
+    found:   ['tag-found',   '✓ Em estoque'],
+    low:     ['tag-partial', '⚠ Estoque baixo'],
+    partial: ['tag-partial', '~ Parcial'],
+    missing: ['tag-missing', '✗ Faltando']
+  };
+
+  let html = `
+    <div class="formula-result-header">
+      <div class="card-title">Resultado</div>
+      <div class="counts">
+        <span class="count-ok">✓ ${cOk + cLow}</span>
+        <span class="count-partial">~ ${cPart}</span>
+        <span class="count-miss">✗ ${cMiss}</span>
+      </div>
+    </div>
+    ${result.formula_nome ? `<div style="color:var(--muted);font-size:11px;margin-bottom:12px">📋 ${result.formula_nome}</div>` : ''}`;
+
+  ativos.forEach(a => {
+    const [tagCls, tagLabel] = tagMap[a.status] || tagMap.missing;
+    const cls = a.status === 'found' ? 'found' : a.status === 'missing' ? 'missing' : a.status;
+    html += `
+      <div class="result-item ${cls}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:3px">
+          <div class="rname">${a.nome}${a.dose ? ` <span style="color:var(--muted);font-weight:400;font-size:11px">${a.dose}</span>` : ''}</div>
+          <span class="tag ${tagCls}" style="white-space:nowrap">${tagLabel}</span>
+        </div>
+        <div class="rdetail">${a.observacao || ''}</div>
+        ${a.substituicao ? `
+          <div class="sub-box">
+            💡 <strong>Substituto:</strong> ${a.substituicao.nome} (qty: ${a.substituicao.qty})<br>
+            ${a.substituicao.justificativa}
+          </div>` : ''}
+      </div>`;
+  });
+
+  document.getElementById('formula-result-area').innerHTML = html;
+}
+
+loadFromServer();
+</script>
+</body>
+</html>
