@@ -385,6 +385,12 @@
         <div class="section-label">Ou liste os ativos manualmente</div>
         <textarea id="manual-ativos" placeholder="Ex:&#10;Nattokinase 100mg&#10;Coenzima Q10 50mg&#10;Vitamina D3 5000UI&#10;Magnésio Bisglicinato 300mg"></textarea>
 
+        <hr>
+
+        <div class="section-label">Chave da API Anthropic</div>
+        <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:100%">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Salva apenas no seu navegador. Nunca enviada a terceiros.</div>
+
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="btn-analisar" disabled>Analisar →</button>
           <button class="btn btn-ghost" id="btn-reset-formula">Limpar</button>
@@ -434,34 +440,43 @@
 </div>
 
 <script>
+const STORAGE_KEY    = 'magistral_inventory';
+const STORAGE_META   = 'magistral_meta';
+const API_KEY_STORAGE = 'magistral_apikey';
+
 let inventory = [];
 let activeGroup = 'todos';
 let formulaFileBase64 = null;
 let formulaFileType = null;
 
-async function saveToServer(inv) {
-  const res = await fetch('/api/estoque', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inventory: inv })
-  });
-  return res.json();
+// ── Persistência local ───────────────────────────────────────────────
+function saveToLocal(inv) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(inv));
+    const meta = { updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_META, JSON.stringify(meta));
+    return meta;
+  } catch(e) {
+    console.warn('localStorage indisponível:', e);
+    return { updatedAt: new Date().toISOString() };
+  }
 }
 
-async function loadFromServer() {
+function loadFromLocal() {
   try {
-    const res = await fetch('/api/estoque');
-    const data = await res.json();
-    if (data.inventory && data.inventory.length > 0) {
-      inventory = data.inventory;
-      if (data.updatedAt) {
-        const d = new Date(data.updatedAt).toLocaleString('pt-BR');
-        document.getElementById('last-update').textContent = 'Atualizado: ' + d;
-      }
-      afterLoad();
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const inv = JSON.parse(raw);
+    if (!inv || inv.length === 0) return;
+    inventory = inv;
+    const meta = JSON.parse(localStorage.getItem(STORAGE_META) || '{}');
+    if (meta.updatedAt) {
+      document.getElementById('last-update').textContent =
+        'Atualizado: ' + new Date(meta.updatedAt).toLocaleString('pt-BR');
     }
+    afterLoad();
   } catch(e) {
-    console.warn('Não foi possível carregar estoque do servidor:', e.message);
+    console.warn('Erro ao carregar localStorage:', e);
   }
 }
 
@@ -588,15 +603,13 @@ document.getElementById('csv-upload').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async ev => {
+  reader.onload = ev => {
     const parsed = parseCSV(ev.target.result);
     if (parsed.length === 0) { alert('Não foi possível ler o CSV. Verifique o formato.'); return; }
     inventory = parsed;
-    const saved = await saveToServer(inventory);
-    const d = saved.updatedAt
-      ? new Date(saved.updatedAt).toLocaleString('pt-BR')
-      : new Date().toLocaleString('pt-BR');
-    document.getElementById('last-update').textContent = 'Atualizado: ' + d;
+    const meta = saveToLocal(inventory);
+    document.getElementById('last-update').textContent =
+      'Atualizado: ' + new Date(meta.updatedAt).toLocaleString('pt-BR');
     afterLoad();
   };
   reader.readAsText(file, 'utf-8');
@@ -625,10 +638,10 @@ document.getElementById('btn-export').addEventListener('click', () => {
   a.click();
 });
 
-document.getElementById('btn-clear').addEventListener('click', async () => {
+document.getElementById('btn-clear').addEventListener('click', () => {
   if (!confirm('Limpar todos os dados de estoque?')) return;
   inventory = [];
-  await saveToServer([]);
+  saveToLocal([]);
   document.getElementById('last-update').textContent = '—';
   document.getElementById('status-dot').className = 'dot';
   document.getElementById('status-text').textContent = 'Nenhum estoque carregado.';
@@ -681,30 +694,27 @@ document.getElementById('btn-reset-formula').addEventListener('click', () => {
 
 document.getElementById('btn-analisar').addEventListener('click', analisarFormula);
 
+// ── Análise de fórmula ───────────────────────────────────────────────
 async function analisarFormula() {
   if (inventory.length === 0) { alert('Carregue o estoque primeiro!'); return; }
   const manual = document.getElementById('manual-ativos').value.trim();
   if (!manual && !formulaFileBase64) { alert('Adicione a fórmula: imagem/PDF ou lista manual.'); return; }
+
+  const apiKey = document.getElementById('api-key-input').value.trim()
+               || localStorage.getItem(API_KEY_STORAGE) || '';
+  if (!apiKey) { alert('Informe a chave da API Anthropic (sk-ant-...).'); return; }
+  localStorage.setItem(API_KEY_STORAGE, apiKey);
 
   document.getElementById('loading-state').style.display = 'block';
   document.getElementById('btn-analisar').disabled = true;
   document.getElementById('formula-result-area').innerHTML = `
     <div class="empty-state" style="padding:40px 0">
       <span class="spinner"></span>
-      <p style="margin-top:12px">Analisando...</p>
+      <p style="margin-top:12px">Analisando com IA...</p>
     </div>`;
 
   try {
-    const res = await fetch('/api/analisar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manual, fileBase64: formulaFileBase64, fileType: formulaFileType })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || res.statusText);
-    }
-    const result = await res.json();
+    const result = await chamarAnthropic(apiKey, manual);
     renderResult(result);
   } catch(err) {
     document.getElementById('formula-result-area').innerHTML = `
@@ -718,17 +728,99 @@ async function analisarFormula() {
   }
 }
 
+async function chamarAnthropic(apiKey, manual) {
+  const mp = inventory.filter(i => i.grupo === 'Matéria-prima');
+  const inventoryLines = mp
+    .map(i => `${i.nome} | ${Math.round(i.qty)} ${i.unidade}`.trim())
+    .join('\n');
+
+  const systemPrompt = `Você é um farmacêutico especialista em farmácias magistrais.
+
+ESTOQUE ATUAL — MATÉRIA-PRIMA:
+${inventoryLines}
+
+INSTRUÇÕES:
+1. Extraia todos os ativos da fórmula (leia imagem/PDF se enviado, ou use o texto)
+2. Para cada ativo, busque no estoque considerando abreviações (NMN, UC-II, Q10), nomes em inglês, latim e variações ortográficas
+3. Classifique: "found" (qty>10), "low" (1≤qty≤10), "missing" (qty=0 ou não encontrado)
+4. Para status "missing" ou "low": liste de 2 a 4 substitutos clínicos que EXISTAM no estoque com qty>0
+5. Os substitutos devem ter mecanismo de ação similar ou função equivalente na fórmula
+
+Retorne SOMENTE JSON válido, sem markdown:
+{
+  "formula_nome": "identificação da fórmula ou paciente se visível",
+  "ativos": [
+    {
+      "nome": "nome como aparece na receita",
+      "dose": "dose se informada ou null",
+      "status": "found|low|missing",
+      "nome_estoque": "nome exato no estoque ou null",
+      "qty": 0,
+      "observacao": "texto curto sobre disponibilidade",
+      "substitutos": [
+        { "nome": "nome exato no estoque", "qty": 0, "justificativa": "razão técnica breve" }
+      ]
+    }
+  ]
+}`;
+
+  const userContent = [];
+  if (formulaFileBase64) {
+    if (formulaFileType === 'application/pdf') {
+      userContent.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: formulaFileBase64 }
+      });
+    } else {
+      userContent.push({
+        type: 'image',
+        source: { type: 'base64', media_type: formulaFileType, data: formulaFileBase64 }
+      });
+    }
+  }
+  userContent.push({
+    type: 'text',
+    text: manual ? `Fórmula:\n${manual}` : 'Analise os ativos da fórmula no arquivo acima.'
+  });
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5-20251001',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.content[0].text;
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('IA não retornou JSON válido');
+  return JSON.parse(jsonMatch[0]);
+}
+
+// ── Renderização dos resultados ──────────────────────────────────────
 function renderResult(result) {
   const ativos = result.ativos || [];
   const cOk   = ativos.filter(a => a.status === 'found').length;
   const cLow  = ativos.filter(a => a.status === 'low').length;
-  const cPart = ativos.filter(a => a.status === 'partial').length;
   const cMiss = ativos.filter(a => a.status === 'missing').length;
 
   const tagMap = {
     found:   ['tag-found',   '✓ Em estoque'],
     low:     ['tag-partial', '⚠ Estoque baixo'],
-    partial: ['tag-partial', '~ Parcial'],
     missing: ['tag-missing', '✗ Faltando']
   };
 
@@ -736,8 +828,8 @@ function renderResult(result) {
     <div class="formula-result-header">
       <div class="card-title">Resultado</div>
       <div class="counts">
-        <span class="count-ok">✓ ${cOk + cLow}</span>
-        <span class="count-partial">~ ${cPart}</span>
+        <span class="count-ok">✓ ${cOk}</span>
+        <span class="count-partial">⚠ ${cLow}</span>
         <span class="count-miss">✗ ${cMiss}</span>
       </div>
     </div>
@@ -745,18 +837,20 @@ function renderResult(result) {
 
   ativos.forEach(a => {
     const [tagCls, tagLabel] = tagMap[a.status] || tagMap.missing;
-    const cls = a.status === 'found' ? 'found' : a.status === 'missing' ? 'missing' : a.status;
+    const cls = a.status === 'found' ? 'found' : a.status === 'missing' ? 'missing' : 'low';
     html += `
       <div class="result-item ${cls}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:3px">
           <div class="rname">${a.nome}${a.dose ? ` <span style="color:var(--muted);font-weight:400;font-size:11px">${a.dose}</span>` : ''}</div>
           <span class="tag ${tagCls}" style="white-space:nowrap">${tagLabel}</span>
         </div>
-        <div class="rdetail">${a.observacao || ''}</div>
-        ${a.substituicao ? `
+        <div class="rdetail">${a.observacao || ''}${a.nome_estoque && a.nome_estoque !== a.nome ? ` · <em>${a.nome_estoque}</em>` : ''}${a.qty > 0 ? ` · ${Math.round(a.qty)} unid.` : ''}</div>
+        ${(a.substitutos && a.substitutos.length > 0) ? `
           <div class="sub-box">
-            💡 <strong>Substituto:</strong> ${a.substituicao.nome} (qty: ${a.substituicao.qty})<br>
-            ${a.substituicao.justificativa}
+            💡 <strong>Substitutos disponíveis no estoque:</strong><br>
+            ${a.substitutos.map((s, i) =>
+              `${i+1}. <strong style="color:var(--accent)">${s.nome}</strong> — ${Math.round(s.qty)} unid. · <span style="color:var(--muted)">${s.justificativa}</span>`
+            ).join('<br>')}
           </div>` : ''}
       </div>`;
   });
@@ -764,7 +858,12 @@ function renderResult(result) {
   document.getElementById('formula-result-area').innerHTML = html;
 }
 
-loadFromServer();
+// ── Inicialização ────────────────────────────────────────────────────
+(function init() {
+  const savedKey = localStorage.getItem(API_KEY_STORAGE);
+  if (savedKey) document.getElementById('api-key-input').value = savedKey;
+  loadFromLocal();
+})();
 </script>
 </body>
 </html>
