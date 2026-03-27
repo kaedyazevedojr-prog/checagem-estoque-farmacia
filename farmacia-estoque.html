@@ -73,6 +73,30 @@
   .panel { display: none; padding: 28px; }
   .panel.active { display: block; }
 
+  /* Sub-tabs dentro do painel Estoque */
+  .subtabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    gap: 0;
+  }
+
+  .subtab {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .subtab:hover { color: var(--text); }
+
+  .subpanel { display: none; }
+  .subpanel.active { display: block; }
+
   .upload-zone {
     border: 1px dashed var(--border);
     border-radius: 8px;
@@ -145,7 +169,7 @@
 
   .search-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
 
-  input[type="text"], textarea, select {
+  input[type="text"], input[type="password"], textarea, select {
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text);
@@ -157,7 +181,7 @@
     transition: border-color 0.15s;
   }
 
-  input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
   input[type="text"] { flex: 1; min-width: 160px; }
   textarea { width: 100%; resize: vertical; min-height: 110px; }
 
@@ -290,6 +314,38 @@
   .gtbtn:hover:not(.active) { color: var(--text); }
 
   .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+
+  /* Histórico de uploads */
+  .history-list { margin-top: 18px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .history-item .h-name { color: var(--text); font-weight: 500; }
+  .history-item .h-meta { color: var(--muted); }
+  .history-item .h-count { color: var(--accent); }
+
+  /* Info box */
+  .info-box {
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 14px;
+  }
+  .info-box strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -308,59 +364,82 @@
 <!-- ESTOQUE -->
 <div class="panel active" id="tab-estoque">
 
-  <div class="status-bar">
-    <div class="dot" id="status-dot"></div>
-    <span id="status-text">Nenhum estoque carregado. Faça o upload do CSV.</span>
+  <div class="subtabs">
+    <div class="subtab active" data-subtab="visualizar">📋 Estoque</div>
+    <div class="subtab" data-subtab="atualizar">🔄 Atualizar</div>
   </div>
 
-  <div class="top-actions">
-    <div class="upload-zone" style="flex:1;min-width:220px;text-align:left;padding:16px;display:flex;align-items:center;gap:14px">
-      <input type="file" id="csv-upload" accept=".csv,.txt">
-      <div style="font-size:22px">📂</div>
-      <div>
-        <p><strong>Carregar / Atualizar Estoque (CSV)</strong></p>
-        <p style="font-size:11px;margin-top:2px">Relatório de Controle de Estoque do sistema</p>
+  <!-- Sub-painel: visualizar estoque -->
+  <div class="subpanel active" id="subtab-visualizar">
+
+    <div class="status-bar">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Nenhum estoque carregado. Vá em Atualizar para fazer o upload do CSV.</span>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:18px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="btn-export" style="font-size:11px" disabled>⬇ Exportar CSV</button>
+      <button class="btn btn-ghost" id="btn-clear"  style="font-size:11px" disabled>🗑 Limpar estoque</button>
+    </div>
+
+    <div id="stats-row" class="stats-row" style="display:none">
+      <div class="stat"><div class="stat-val" id="s-total">0</div><div class="stat-label">Total itens</div></div>
+      <div class="stat"><div class="stat-val" id="s-mp" style="color:#a5b4fc">0</div><div class="stat-label">Matéria-prima</div></div>
+      <div class="stat"><div class="stat-val" id="s-emb" style="color:#818cf8">0</div><div class="stat-label">Embalagens</div></div>
+      <div class="stat"><div class="stat-val" id="s-ok" style="color:var(--green)">0</div><div class="stat-label">Em estoque</div></div>
+      <div class="stat"><div class="stat-val" id="s-low" style="color:var(--yellow)">0</div><div class="stat-label">Estoque baixo</div></div>
+      <div class="stat"><div class="stat-val" id="s-zero" style="color:var(--red)">0</div><div class="stat-label">Zerados</div></div>
+    </div>
+
+    <div class="group-toggle" id="group-toggle" style="display:none">
+      <button class="gtbtn active" data-group="todos">Todos</button>
+      <button class="gtbtn" data-group="Matéria-prima">Matéria-prima</button>
+      <button class="gtbtn" data-group="Embalagem">Embalagem</button>
+      <button class="gtbtn" data-group="Drogaria">Drogaria</button>
+      <button class="gtbtn" data-group="Revenda">Revenda</button>
+      <button class="gtbtn" data-group="Outros">Outros</button>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Buscar produto..." disabled>
+      <select id="filter-status" disabled>
+        <option value="">Todos os status</option>
+        <option value="ok">Em estoque</option>
+        <option value="low">Estoque baixo</option>
+        <option value="zero">Zerado</option>
+      </select>
+    </div>
+
+    <div id="table-area">
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <p>Faça o upload do CSV em <strong>Atualizar</strong> para visualizar o estoque.</p>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <button class="btn btn-ghost" id="btn-export" style="font-size:11px" disabled>⬇ Exportar</button>
-      <button class="btn btn-ghost" id="btn-clear"  style="font-size:11px" disabled>🗑 Limpar</button>
+  </div>
+
+  <!-- Sub-painel: atualizar estoque -->
+  <div class="subpanel" id="subtab-atualizar">
+
+    <div class="info-box">
+      <strong>Como atualizar:</strong> Exporte o Relatório de Controle de Estoque do seu sistema e faça o upload aqui.
+      O estoque fica salvo no navegador e persiste entre sessões. Faça o upload sempre que o estoque mudar.
     </div>
-  </div>
 
-  <div id="stats-row" class="stats-row" style="display:none">
-    <div class="stat"><div class="stat-val" id="s-total">0</div><div class="stat-label">Total itens</div></div>
-    <div class="stat"><div class="stat-val" id="s-mp" style="color:#a5b4fc">0</div><div class="stat-label">Matéria-prima</div></div>
-    <div class="stat"><div class="stat-val" id="s-emb" style="color:#818cf8">0</div><div class="stat-label">Embalagens</div></div>
-    <div class="stat"><div class="stat-val" id="s-ok" style="color:var(--green)">0</div><div class="stat-label">Em estoque</div></div>
-    <div class="stat"><div class="stat-val" id="s-low" style="color:var(--yellow)">0</div><div class="stat-label">Estoque baixo</div></div>
-    <div class="stat"><div class="stat-val" id="s-zero" style="color:var(--red)">0</div><div class="stat-label">Zerados</div></div>
-  </div>
-
-  <div class="group-toggle" id="group-toggle" style="display:none">
-    <button class="gtbtn active" data-group="todos">Todos</button>
-    <button class="gtbtn" data-group="Matéria-prima">Matéria-prima</button>
-    <button class="gtbtn" data-group="Embalagem">Embalagem</button>
-    <button class="gtbtn" data-group="Drogaria">Drogaria</button>
-    <button class="gtbtn" data-group="Revenda">Revenda</button>
-    <button class="gtbtn" data-group="Outros">Outros</button>
-  </div>
-
-  <div class="search-row">
-    <input type="text" id="search" placeholder="Buscar produto..." disabled>
-    <select id="filter-status" disabled>
-      <option value="">Todos os status</option>
-      <option value="ok">Em estoque</option>
-      <option value="low">Estoque baixo</option>
-      <option value="zero">Zerado</option>
-    </select>
-  </div>
-
-  <div id="table-area">
-    <div class="empty-state">
-      <div class="icon">📋</div>
-      <p>Faça o upload do CSV para visualizar o estoque.</p>
+    <div class="upload-zone" id="upload-zone-atualizar" style="max-width:520px">
+      <input type="file" id="csv-upload" accept=".csv,.txt">
+      <div class="upload-icon">📂</div>
+      <p><strong>Arraste o CSV aqui ou clique para selecionar</strong><br>
+      Relatório de Controle de Estoque — separador ponto-e-vírgula</p>
     </div>
+
+    <div id="upload-feedback" style="display:none;margin-top:14px;padding:10px 14px;background:#052e16;border:1px solid #16a34a;border-radius:6px;font-size:12px;color:var(--green)"></div>
+
+    <div class="history-list" id="history-list" style="display:none">
+      <div class="section-label" style="margin-top:20px;margin-bottom:10px">Histórico de uploads</div>
+      <div id="history-items"></div>
+    </div>
+
   </div>
 </div>
 
@@ -369,35 +448,40 @@
   <div class="formula-grid">
     <div>
       <div class="card">
-        <div class="card-title">Upload da Fórmula</div>
+        <div class="card-title">Analisar Fórmula</div>
 
-        <div class="section-label">Imagem ou PDF da receita</div>
-        <div class="upload-zone" style="padding:20px;margin-bottom:12px">
+        <div class="info-box">
+          <strong>Sem API necessária</strong> para lista manual — análise feita direto no navegador.<br>
+          Para leitura de imagem/PDF, informe a chave Anthropic abaixo.
+        </div>
+
+        <div class="section-label">Ou liste os ativos manualmente</div>
+        <textarea id="manual-ativos" placeholder="Um ativo por linha. Ex:&#10;Nattokinase 100mg&#10;Coenzima Q10 50mg&#10;Vitamina D3 5000UI&#10;Magnésio Bisglicinato 300mg"></textarea>
+
+        <hr>
+
+        <div class="section-label">Imagem ou PDF da receita (opcional)</div>
+        <div class="upload-zone" style="padding:16px;margin-bottom:8px">
           <input type="file" id="formula-file" accept="image/*,.pdf">
-          <div class="upload-icon">📋</div>
-          <p><strong>Arraste aqui ou clique</strong><br>JPG, PNG, PDF</p>
+          <div class="upload-icon" style="font-size:20px;margin-bottom:6px">📋</div>
+          <p style="font-size:11px"><strong>Arraste aqui ou clique</strong> · JPG, PNG, PDF</p>
         </div>
         <img id="img-preview" alt="Preview">
         <div id="file-chip" style="display:none"></div>
 
-        <hr>
+        <div id="api-key-section" style="margin-top:12px">
+          <div class="section-label">Chave API Anthropic (para imagem/PDF)</div>
+          <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:100%">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Salva no seu navegador. Necessária apenas para análise de imagens.</div>
+        </div>
 
-        <div class="section-label">Ou liste os ativos manualmente</div>
-        <textarea id="manual-ativos" placeholder="Ex:&#10;Nattokinase 100mg&#10;Coenzima Q10 50mg&#10;Vitamina D3 5000UI&#10;Magnésio Bisglicinato 300mg"></textarea>
-
-        <hr>
-
-        <div class="section-label">Chave da API Anthropic</div>
-        <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:100%">
-        <div style="font-size:10px;color:var(--muted);margin-top:4px">Salva apenas no seu navegador. Nunca enviada a terceiros.</div>
-
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="btn-analisar" disabled>Analisar →</button>
           <button class="btn btn-ghost" id="btn-reset-formula">Limpar</button>
         </div>
 
         <div id="loading-state" style="display:none;margin-top:12px;color:var(--muted);font-size:12px">
-          <span class="spinner"></span> Analisando com IA...
+          <span class="spinner"></span> <span id="loading-msg">Analisando...</span>
         </div>
       </div>
     </div>
@@ -407,7 +491,7 @@
         <div id="formula-result-area">
           <div class="empty-state" style="padding:40px 0">
             <div class="icon">🧪</div>
-            <p>Carregue uma fórmula e clique em<br><strong>Analisar</strong>.</p>
+            <p>Carregue o estoque, liste os ativos e clique em<br><strong>Analisar</strong>.</p>
           </div>
         </div>
       </div>
@@ -419,11 +503,11 @@
 <div class="panel" id="tab-sobre">
   <div class="card" style="max-width:580px">
     <div class="card-title">Como usar</div>
-    <div class="info-row">📂 <span>Upload do CSV</span> — Relatório de Controle de Estoque do seu sistema</div>
-    <div class="info-row">🔄 <span>Atualização diária</span> — Só arrastar o novo arquivo; substitui automaticamente</div>
+    <div class="info-row">📂 <span>Upload do CSV</span> — Vá em Estoque → Atualizar e suba o Relatório de Controle de Estoque</div>
+    <div class="info-row">🔄 <span>Atualização diária</span> — Só arrastar o novo arquivo; substitui automaticamente e salva o histórico</div>
     <div class="info-row">🏷 <span>Grupos</span> — Filtre por Matéria-prima, Embalagem, Drogaria, Revenda, Outros</div>
-    <div class="info-row">🧪 <span>Analisar Fórmula</span> — Sobe imagem/PDF da receita ou lista manualmente</div>
-    <div class="info-row">🤖 <span>IA verifica</span> — Cada ativo cruzado com o estoque. Faltando? Sugere substituto disponível</div>
+    <div class="info-row">🧪 <span>Analisar Fórmula</span> — Liste os ativos manualmente (sem precisar de API)</div>
+    <div class="info-row">🤖 <span>Com API Anthropic</span> — Análise de imagem/PDF da receita + sugestões avançadas</div>
     <hr>
     <div class="section-label">Formato do CSV</div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--muted);line-height:1.8">
@@ -440,9 +524,10 @@
 </div>
 
 <script>
-const STORAGE_KEY    = 'magistral_inventory';
-const STORAGE_META   = 'magistral_meta';
-const API_KEY_STORAGE = 'magistral_apikey';
+const STORAGE_KEY      = 'magistral_inventory';
+const STORAGE_META     = 'magistral_meta';
+const API_KEY_STORAGE  = 'magistral_apikey';
+const HISTORY_KEY      = 'magistral_upload_history';
 
 let inventory = [];
 let activeGroup = 'todos';
@@ -480,6 +565,41 @@ function loadFromLocal() {
   }
 }
 
+// ── Histórico de uploads ─────────────────────────────────────────────
+function addUploadHistory(filename, itemCount) {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const history = raw ? JSON.parse(raw) : [];
+    history.unshift({ filename, itemCount, date: new Date().toISOString() });
+    const trimmed = history.slice(0, 10);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    renderHistory(trimmed);
+  } catch(e) { /* silencioso */ }
+}
+
+function renderHistory(history) {
+  if (!history || history.length === 0) return;
+  const container = document.getElementById('history-list');
+  const items = document.getElementById('history-items');
+  container.style.display = 'block';
+  items.innerHTML = history.map((h, i) => `
+    <div class="history-item">
+      <div>
+        <div class="h-name">${i === 0 ? '🟢 ' : ''}${h.filename}</div>
+        <div class="h-meta">${new Date(h.date).toLocaleString('pt-BR')}</div>
+      </div>
+      <div class="h-count">${h.itemCount.toLocaleString('pt-BR')} itens</div>
+    </div>`).join('');
+}
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw) renderHistory(JSON.parse(raw));
+  } catch(e) { /* silencioso */ }
+}
+
+// ── Parse CSV ────────────────────────────────────────────────────────
 function parseCSV(text) {
   text = text.replace(/^\uFEFF/, '');
   const lines = text.trim().split(/\r?\n/);
@@ -488,13 +608,13 @@ function parseCSV(text) {
   const delim = first.includes(';') ? ';' : first.includes('\t') ? '\t' : ',';
   const headers = first.split(delim).map(h => h.replace(/^"|"$/g,'').trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-  
+
   const idx = name => headers.findIndex(h => h.includes(name));
-  const iProduto    = idx('produto');
-  const iGrupo      = idx('grupo');
-  const iQtd        = idx('quantidade') >= 0 ? idx('quantidade') : idx('qtd');
-  const iUnidade    = idx('unidade');
-  const iCodigo     = idx('codigo') >= 0 ? idx('codigo') : idx('cod');
+  const iProduto = idx('produto');
+  const iGrupo   = idx('grupo');
+  const iQtd     = idx('quantidade') >= 0 ? idx('quantidade') : idx('qtd');
+  const iUnidade = idx('unidade');
+  const iCodigo  = idx('codigo') >= 0 ? idx('codigo') : idx('cod');
 
   if (iProduto === -1 || iQtd === -1) return [];
 
@@ -539,6 +659,7 @@ function badgeHTML(qty) {
   return '<span class="badge badge-zero">ZERADO</span>';
 }
 
+// ── Renderização do inventário ───────────────────────────────────────
 function renderInventory() {
   const search = document.getElementById('search').value.toLowerCase();
   const fStatus = document.getElementById('filter-status').value;
@@ -599,6 +720,7 @@ function afterLoad() {
   renderInventory();
 }
 
+// ── Upload CSV ────────────────────────────────────────────────────────
 document.getElementById('csv-upload').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -608,13 +730,20 @@ document.getElementById('csv-upload').addEventListener('change', e => {
     if (parsed.length === 0) { alert('Não foi possível ler o CSV. Verifique o formato.'); return; }
     inventory = parsed;
     const meta = saveToLocal(inventory);
-    document.getElementById('last-update').textContent =
-      'Atualizado: ' + new Date(meta.updatedAt).toLocaleString('pt-BR');
+    const dateStr = new Date(meta.updatedAt).toLocaleString('pt-BR');
+    document.getElementById('last-update').textContent = 'Atualizado: ' + dateStr;
+
+    const feedback = document.getElementById('upload-feedback');
+    feedback.style.display = 'block';
+    feedback.textContent = `✓ ${parsed.length} itens carregados de "${file.name}" — ${dateStr}`;
+
+    addUploadHistory(file.name, parsed.length);
     afterLoad();
   };
   reader.readAsText(file, 'utf-8');
 });
 
+// ── Filtros e grupos ─────────────────────────────────────────────────
 document.querySelectorAll('.gtbtn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.gtbtn').forEach(b => b.classList.remove('active'));
@@ -649,9 +778,10 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   document.getElementById('group-toggle').style.display = 'none';
   ['search','filter-status'].forEach(id => document.getElementById(id).disabled = true);
   ['btn-export','btn-clear','btn-analisar'].forEach(id => document.getElementById(id).disabled = true);
-  document.getElementById('table-area').innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>Faça o upload do CSV.</p></div>`;
+  document.getElementById('table-area').innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>Faça o upload do CSV em <strong>Atualizar</strong>.</p></div>`;
 });
 
+// ── Navegação abas principais ────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -661,6 +791,17 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
+// ── Navegação sub-abas ───────────────────────────────────────────────
+document.querySelectorAll('.subtab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('subtab-' + tab.dataset.subtab).classList.add('active');
+  });
+});
+
+// ── Upload da fórmula (imagem/PDF) ───────────────────────────────────
 document.getElementById('formula-file').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -696,25 +837,38 @@ document.getElementById('btn-analisar').addEventListener('click', analisarFormul
 
 // ── Análise de fórmula ───────────────────────────────────────────────
 async function analisarFormula() {
-  if (inventory.length === 0) { alert('Carregue o estoque primeiro!'); return; }
+  if (inventory.length === 0) { alert('Carregue o estoque primeiro (aba Estoque → Atualizar)!'); return; }
   const manual = document.getElementById('manual-ativos').value.trim();
-  if (!manual && !formulaFileBase64) { alert('Adicione a fórmula: imagem/PDF ou lista manual.'); return; }
-
-  const apiKey = document.getElementById('api-key-input').value.trim()
-               || localStorage.getItem(API_KEY_STORAGE) || '';
-  if (!apiKey) { alert('Informe a chave da API Anthropic (sk-ant-...).'); return; }
-  localStorage.setItem(API_KEY_STORAGE, apiKey);
+  if (!manual && !formulaFileBase64) { alert('Digite os ativos manualmente ou faça o upload de uma imagem/PDF.'); return; }
 
   document.getElementById('loading-state').style.display = 'block';
   document.getElementById('btn-analisar').disabled = true;
   document.getElementById('formula-result-area').innerHTML = `
     <div class="empty-state" style="padding:40px 0">
       <span class="spinner"></span>
-      <p style="margin-top:12px">Analisando com IA...</p>
+      <p style="margin-top:12px" id="analysis-progress">Analisando...</p>
     </div>`;
 
   try {
-    const result = await chamarAnthropic(apiKey, manual);
+    let result;
+    if (formulaFileBase64) {
+      // Análise com imagem/PDF requer API Anthropic
+      const apiKey = document.getElementById('api-key-input').value.trim()
+                   || localStorage.getItem(API_KEY_STORAGE) || '';
+      if (!apiKey) {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('btn-analisar').disabled = false;
+        alert('Para análise de imagem ou PDF, informe a chave da API Anthropic (sk-ant-...).');
+        return;
+      }
+      localStorage.setItem(API_KEY_STORAGE, apiKey);
+      document.getElementById('loading-msg').textContent = 'Lendo imagem com IA...';
+      result = await chamarAnthropic(apiKey, manual);
+    } else {
+      // Análise local: sem API, sem custo
+      document.getElementById('loading-msg').textContent = 'Verificando no estoque...';
+      result = analisarLocal(manual);
+    }
     renderResult(result);
   } catch(err) {
     document.getElementById('formula-result-area').innerHTML = `
@@ -728,6 +882,283 @@ async function analisarFormula() {
   }
 }
 
+// ── Análise local (sem API) ──────────────────────────────────────────
+
+// Normaliza string para comparação
+function norm(s) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Mapa de abreviações e nomes alternativos
+const ALIASES = {
+  'nmn': 'nicotinamida mononucleotideo',
+  'nr': 'nicotinamida ribosideo',
+  'nad': 'nicotinamida',
+  'q10': 'coenzima q10',
+  'coq10': 'coenzima q10',
+  'ubiquinol': 'coenzima q10',
+  'ubiquinona': 'coenzima q10',
+  'uc ii': 'colageno tipo ii',
+  'uc-ii': 'colageno tipo ii',
+  'ucii': 'colageno tipo ii',
+  'dhea': 'dehidroepiandrosterona',
+  'nac': 'n acetil cisteina',
+  'n-acetil cisteina': 'n acetil cisteina',
+  'vit c': 'acido ascorbico',
+  'vitamina c': 'acido ascorbico',
+  'vit d': 'colecalciferol',
+  'vitamina d': 'colecalciferol',
+  'vitamina d3': 'colecalciferol',
+  'vit d3': 'colecalciferol',
+  'vit d2': 'ergocalciferol',
+  'vit e': 'tocoferol',
+  'vitamina e': 'tocoferol',
+  'vit b12': 'cianocobalamina',
+  'b12': 'cianocobalamina',
+  'metilcobalamina': 'cobalamina',
+  'vit b6': 'piridoxina',
+  'b6': 'piridoxina',
+  'vit b1': 'tiamina',
+  'b1': 'tiamina',
+  'vit b9': 'acido folico',
+  'b9': 'acido folico',
+  'folato': 'acido folico',
+  'acido folico': 'acido folico',
+  'mag': 'magnesio',
+  'magnesio bisglicinato': 'magnesio bisglicinato',
+  'zn': 'zinco',
+  'fe': 'ferro',
+  'ala': 'acido alfa lipoico',
+  'acido alfa lipoico': 'acido alfa lipoico',
+  'alfa lipoico': 'acido alfa lipoico',
+  'gsh': 'glutationa',
+  'resveratrol trans': 'resveratrol',
+  'melatonina': 'melatonina',
+  'ashwagandha': 'withania somnifera',
+  'withanolidas': 'withania somnifera',
+  'berberina': 'berberina',
+  'curcumina': 'curcumina',
+  'curcuma': 'curcumina',
+  'quercetina': 'quercetina',
+  'pterostilbeno': 'pterostilbeno',
+  'pycnogenol': 'extrato de casca de pinheiro',
+  'semaglutida': 'semaglutida',
+  'tirzepatida': 'tirzepatida',
+  'liraglutida': 'liraglutida',
+  'progesterona': 'progesterona',
+  'estradiol': 'estradiol',
+  'estriol': 'estriol',
+  'testosterona': 'testosterona',
+  'dhea': 'dhea',
+  'pregnenolona': 'pregnenolona',
+  'nattokinase': 'nattokinase',
+  'serrapeptase': 'serrapeptase',
+  'bromelina': 'bromelina',
+  'enzimas': 'bromelina',
+  'spirulina': 'spirulina',
+  'chlorella': 'chlorella',
+  'colageno': 'colageno',
+  'colageno hidrolisado': 'colageno hidrolisado',
+  'verisol': 'colageno verisol',
+  'inositol': 'inositol',
+  'mio inositol': 'mio inositol',
+  'triptofano': 'triptofano',
+  'l triptofano': 'triptofano',
+  '5 htp': '5 hidroxitriptofano',
+  'gaba': 'acido gama aminobutirico',
+  'l teanina': 'teanina',
+  'teanina': 'teanina',
+  'creatina': 'creatina',
+  'cafeina': 'cafeina',
+  'cafeina anidra': 'cafeina',
+  'l carnitina': 'carnitina',
+  'carnitina': 'carnitina',
+  'acetil l carnitina': 'acetil carnitina',
+  'alcar': 'acetil carnitina',
+};
+
+// Tabela de substituições por similaridade técnica
+const SUB_MAP = [
+  { termos: ['vitamina c lipossomal', 'vit c lipossomal'], alternativas: ['acido ascorbico', 'ascorbato'], nota: 'Equivalente; biodisponibilidade similar' },
+  { termos: ['nmn', 'nicotinamida mononucleotideo'], alternativas: ['nicotinamida ribosideo', 'niacinamida', 'nicotinamida'], nota: 'Precursores do NAD+ — verificar dose' },
+  { termos: ['nr', 'nicotinamida ribosideo'], alternativas: ['nmn', 'nicotinamida mononucleotideo', 'niacinamida'], nota: 'Precursores do NAD+' },
+  { termos: ['colageno verisol', 'verisol'], alternativas: ['colageno hidrolisado', 'colageno tipo i', 'colageno'], nota: 'Verisol é patenteado; informar prescritor' },
+  { termos: ['uc ii', 'uc-ii', 'colageno tipo ii nao desnaturado'], alternativas: ['colageno tipo ii', 'colageno'], nota: 'UC-II não desnaturado; verificar articulação' },
+  { termos: ['melatonina 99%', 'melatonina usp'], alternativas: ['melatonina'], nota: 'Verificar pureza do lote' },
+  { termos: ['cafeina anidra'], alternativas: ['cafeina'], nota: 'Mesma atividade; verificar pureza' },
+  { termos: ['dhea micronizado'], alternativas: ['dhea'], nota: 'Micronização afeta absorção' },
+  { termos: ['progesterona micronizada'], alternativas: ['progesterona usp', 'progesterona'], nota: 'Tamanho de partícula afeta absorção' },
+  { termos: ['vitamina d3', 'colecalciferol'], alternativas: ['vitamina d', 'vitamina d2', 'ergocalciferol'], nota: 'D3 preferível; D2 como alternativa' },
+  { termos: ['coenzima q10', 'ubiquinol'], alternativas: ['ubiquinona', 'coenzima q10'], nota: 'Ubiquinol é forma reduzida; verificar indicação' },
+  { termos: ['acido alfa lipoico', 'ala'], alternativas: ['r-ala', 'acido lipoico'], nota: 'R-ALA é isômero ativo; verificar especificação' },
+  { termos: ['glutationa reduzida', 'gsh'], alternativas: ['glutationa', 'n acetil cisteina', 'nac'], nota: 'NAC é precursor da glutationa' },
+  { termos: ['ashwagandha', 'withania somnifera'], alternativas: ['ksm-66', 'withanolidas'], nota: 'Verificar percentual de withanolídeos' },
+  { termos: ['resveratrol trans'], alternativas: ['resveratrol', 'pterostilbeno'], nota: 'Trans é isômero ativo' },
+  { termos: ['triptofano', 'l-triptofano'], alternativas: ['5 htp', '5-hidroxitriptofano'], nota: '5-HTP é precursor imediato da serotonina' },
+  { termos: ['magnesio bisglicinato'], alternativas: ['magnesio quelato', 'magnesio citrato', 'magnesio'], nota: 'Formas queladas têm melhor absorção' },
+  { termos: ['ferro bisglicinato'], alternativas: ['ferro quelato', 'sulfato ferroso', 'ferro'], nota: 'Quelato tem menor irritação gástrica' },
+  { termos: ['zinco bisglicinato'], alternativas: ['zinco quelato', 'zinco citrato', 'zinco'], nota: 'Formas queladas têm melhor absorção' },
+];
+
+// Busca um ativo no inventário (apenas Matéria-prima)
+function buscarNoEstoque(termoBruto) {
+  const mp = inventory.filter(i => i.grupo === 'Matéria-prima');
+  const termo = norm(termoBruto);
+  const aliasResolvido = ALIASES[termo] || termo;
+
+  // Estratégia 1: match exato no alias resolvido
+  let found = mp.find(i => norm(i.nome) === aliasResolvido);
+  if (found) return found;
+
+  // Estratégia 2: nome do estoque contém o alias resolvido
+  found = mp.find(i => norm(i.nome).includes(aliasResolvido));
+  if (found) return found;
+
+  // Estratégia 3: alias resolvido contém nome do estoque
+  found = mp.find(i => aliasResolvido.includes(norm(i.nome)) && norm(i.nome).length > 4);
+  if (found) return found;
+
+  // Estratégia 4: sobreposição de palavras significativas (>= 2 palavras com 4+ chars)
+  const palavras = aliasResolvido.split(' ').filter(p => p.length >= 4);
+  if (palavras.length >= 1) {
+    const scores = mp.map(item => {
+      const iNorm = norm(item.nome);
+      const matches = palavras.filter(p => iNorm.includes(p)).length;
+      return { item, matches };
+    }).filter(x => x.matches > 0).sort((a, b) => b.matches - a.matches);
+
+    if (scores.length > 0 && scores[0].matches >= Math.min(2, palavras.length)) {
+      return scores[0].item;
+    }
+    // Para termos simples (1 palavra), aceita 1 match
+    if (palavras.length === 1 && scores.length > 0) {
+      return scores[0].item;
+    }
+  }
+
+  return null;
+}
+
+// Busca substitutos disponíveis no estoque
+function buscarSubstitutos(termoBruto, nomeEstoqueJaEncontrado) {
+  const mp = inventory.filter(i => i.grupo === 'Matéria-prima' && i.qty > 0);
+  const termo = norm(termoBruto);
+  const subs = [];
+  const adicionados = new Set();
+
+  if (nomeEstoqueJaEncontrado) adicionados.add(norm(nomeEstoqueJaEncontrado));
+
+  // 1. Procura no mapa de substituições
+  for (const entry of SUB_MAP) {
+    const match = entry.termos.some(t => termo.includes(norm(t)) || norm(t).includes(termo));
+    if (match) {
+      for (const alt of entry.alternativas) {
+        const altNorm = norm(alt);
+        const itemEstoque = mp.find(i => norm(i.nome).includes(altNorm) || altNorm.includes(norm(i.nome).split(' ')[0]));
+        if (itemEstoque && !adicionados.has(norm(itemEstoque.nome))) {
+          adicionados.add(norm(itemEstoque.nome));
+          subs.push({ nome: itemEstoque.nome, qty: itemEstoque.qty, justificativa: entry.nota });
+          if (subs.length >= 4) return subs;
+        }
+      }
+    }
+  }
+
+  // 2. Complementa com itens de nome similar no estoque
+  if (subs.length < 2) {
+    const palavras = termo.split(' ').filter(p => p.length >= 5);
+    if (palavras.length > 0) {
+      const similares = mp
+        .filter(i => palavras.some(p => norm(i.nome).includes(p)) && !adicionados.has(norm(i.nome)))
+        .slice(0, 4 - subs.length);
+      similares.forEach(i => {
+        adicionados.add(norm(i.nome));
+        subs.push({ nome: i.nome, qty: i.qty, justificativa: 'Nome similar — verificar equivalência clínica' });
+      });
+    }
+  }
+
+  return subs.slice(0, 4);
+}
+
+// Parse da lista manual de ativos
+function parseLista(texto) {
+  return texto.split(/\n/)
+    .map(linha => linha.trim())
+    .filter(linha => linha.length > 1)
+    .map(linha => {
+      // Extrai dose: "Nattokinase 100mg" → nome="Nattokinase", dose="100mg"
+      const doseMatch = linha.match(/^(.*?)\s+(\d[\d.,]*\s*(?:mg|mcg|ug|ui|iu|g|ml|%|un|caps|comp|gtt|gotas)[\w\/]*)$/i);
+      if (doseMatch) return { nome: doseMatch[1].trim(), dose: doseMatch[2].trim() };
+      return { nome: linha, dose: null };
+    });
+}
+
+// Análise local completa (sem API)
+function analisarLocal(textoManual) {
+  const ativos = parseLista(textoManual);
+  const resultado = [];
+
+  for (const ativo of ativos) {
+    const encontrado = buscarNoEstoque(ativo.nome);
+
+    if (!encontrado) {
+      // Não encontrado — busca substitutos
+      const subs = buscarSubstitutos(ativo.nome, null);
+      resultado.push({
+        nome: ativo.nome,
+        dose: ativo.dose,
+        status: 'missing',
+        nome_estoque: null,
+        qty: 0,
+        observacao: 'Não encontrado no estoque',
+        substitutos: subs
+      });
+    } else if (encontrado.qty <= 0) {
+      // Encontrado mas zerado
+      const subs = buscarSubstitutos(ativo.nome, encontrado.nome);
+      resultado.push({
+        nome: ativo.nome,
+        dose: ativo.dose,
+        status: 'missing',
+        nome_estoque: encontrado.nome,
+        qty: 0,
+        observacao: 'Zerado no estoque',
+        substitutos: subs
+      });
+    } else if (encontrado.qty <= 10) {
+      // Estoque baixo
+      const subs = buscarSubstitutos(ativo.nome, encontrado.nome);
+      resultado.push({
+        nome: ativo.nome,
+        dose: ativo.dose,
+        status: 'low',
+        nome_estoque: encontrado.nome,
+        qty: encontrado.qty,
+        observacao: `Estoque baixo — ${Math.round(encontrado.qty)} ${encontrado.unidade}`,
+        substitutos: subs
+      });
+    } else {
+      resultado.push({
+        nome: ativo.nome,
+        dose: ativo.dose,
+        status: 'found',
+        nome_estoque: encontrado.nome,
+        qty: encontrado.qty,
+        observacao: `${Math.round(encontrado.qty)} ${encontrado.unidade} disponível`,
+        substitutos: []
+      });
+    }
+  }
+
+  return { formula_nome: null, ativos: resultado, fonte: 'local' };
+}
+
+// ── Chamada Anthropic (para imagem/PDF) ──────────────────────────────
 async function chamarAnthropic(apiKey, manual) {
   const mp = inventory.filter(i => i.grupo === 'Matéria-prima');
   const inventoryLines = mp
@@ -824,9 +1255,13 @@ function renderResult(result) {
     missing: ['tag-missing', '✗ Faltando']
   };
 
+  const fonteLabel = result.fonte === 'local'
+    ? '<span style="font-size:10px;color:var(--muted);margin-left:6px">(análise local)</span>'
+    : '<span style="font-size:10px;color:var(--muted);margin-left:6px">(análise IA)</span>';
+
   let html = `
     <div class="formula-result-header">
-      <div class="card-title">Resultado</div>
+      <div class="card-title">Resultado ${fonteLabel}</div>
       <div class="counts">
         <span class="count-ok">✓ ${cOk}</span>
         <span class="count-partial">⚠ ${cLow}</span>
@@ -844,7 +1279,7 @@ function renderResult(result) {
           <div class="rname">${a.nome}${a.dose ? ` <span style="color:var(--muted);font-weight:400;font-size:11px">${a.dose}</span>` : ''}</div>
           <span class="tag ${tagCls}" style="white-space:nowrap">${tagLabel}</span>
         </div>
-        <div class="rdetail">${a.observacao || ''}${a.nome_estoque && a.nome_estoque !== a.nome ? ` · <em>${a.nome_estoque}</em>` : ''}${a.qty > 0 ? ` · ${Math.round(a.qty)} unid.` : ''}</div>
+        <div class="rdetail">${a.observacao || ''}${a.nome_estoque && a.nome_estoque !== a.nome ? ` · <em>${a.nome_estoque}</em>` : ''}${a.qty > 0 && a.status === 'found' ? ` · ${Math.round(a.qty)} unid.` : ''}</div>
         ${(a.substitutos && a.substitutos.length > 0) ? `
           <div class="sub-box">
             💡 <strong>Substitutos disponíveis no estoque:</strong><br>
@@ -863,6 +1298,7 @@ function renderResult(result) {
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
   if (savedKey) document.getElementById('api-key-input').value = savedKey;
   loadFromLocal();
+  loadHistory();
 })();
 </script>
 </body>
